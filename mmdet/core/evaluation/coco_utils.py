@@ -14,10 +14,11 @@ def coco_eval(result_files,
               result_types,
               coco,
               max_dets=(100, 300, 1000),
-              classwise=False):
+              classwise=False,
+              cfg=None):
     for res_type in result_types:
         assert res_type in [
-            'proposal', 'proposal_fast', 'bbox', 'segm', 'keypoints'
+            'proposal', 'proposal_fast', 'bbox', 'segm', 'keypoints', 'f1'
         ]
 
     if mmcv.is_str(coco):
@@ -34,30 +35,36 @@ def coco_eval(result_files,
         if isinstance(result_files, str):
             result_file = result_files
         elif isinstance(result_files, dict):
-            result_file = result_files[res_type]
+            result_file = result_files['bbox'] if res_type == 'f1' else result_files[res_type]
         else:
             assert TypeError('result_files must be a str or dict')
         assert result_file.endswith('.json')
 
         coco_dets = coco.loadRes(result_file)
         img_ids = coco.getImgIds()
-        iou_type = 'bbox' if res_type == 'proposal' else res_type
+        iou_type = 'bbox' if res_type == 'proposal' or 'f1' else res_type
         cocoEval = COCOeval(coco, coco_dets, iou_type)
         cocoEval.params.imgIds = img_ids
         if res_type == 'proposal':
             cocoEval.params.useCats = 0
             cocoEval.params.maxDets = list(max_dets)
+
         cocoEval.evaluate()
         cocoEval.accumulate()
         cocoEval.summarize()
 
-        predictions = cocoEval.cocoDt.imgToAnns
-        gt_annotations = cocoEval.cocoGt.imgToAnns
-        recall, precision, hmean, _ = text_eval(
-            predictions, gt_annotations, use_transcriptions=False)
-        print(' Text detection recall={:.4f} precision={:.4f} hmean={:.4f}'.
-              format(recall, precision, hmean))
-        cocoEval.stats[-1] = hmean
+        if res_type == 'f1':
+            predictions = cocoEval.cocoDt.imgToAnns
+            gt_annotations = cocoEval.cocoGt.imgToAnns
+            recall, precision, hmean, _ = text_eval(
+                predictions, gt_annotations, cfg.test_cfg.score_thr,
+                # images=[cfg.data_root + image['file_name'] for image in coco_dets.dataset['images']],
+                show_recall_graph=False,
+                use_transcriptions=False)
+            print(' Text detection recall={:.4f} precision={:.4f} hmean={:.4f}'.
+                  format(recall, precision, hmean))
+            cocoEval.stats[-1] = hmean
+            return
 
         if classwise:
             # Compute per-category AP

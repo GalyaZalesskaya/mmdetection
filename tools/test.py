@@ -219,7 +219,7 @@ def parse_args():
         '--eval',
         type=str,
         nargs='+',
-        choices=['proposal', 'proposal_fast', 'bbox', 'segm', 'keypoints'],
+        choices=['proposal', 'proposal_fast', 'bbox', 'segm', 'keypoints', 'f1'],
         help='eval types')
     parser.add_argument('--show', action='store_true', help='show results')
     parser.add_argument(
@@ -321,7 +321,7 @@ def main():
             else:
                 if not isinstance(outputs[0], dict):
                     result_files = results2json(dataset, outputs, args.out)
-                    coco_eval(result_files, eval_types, dataset.coco)
+                    coco_eval(result_files, eval_types, dataset.coco, cfg=cfg)
                 else:
                     for name in outputs[0]:
                         print('\nEvaluating {}'.format(name))

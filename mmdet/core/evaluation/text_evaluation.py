@@ -21,7 +21,6 @@ import pycocotools.mask as mask_utils
 
 IOU_CONSTRAINT = 0.5
 AREA_PRECISION_CONSTRAINT = 0.5
-CONFIDENCE_THRESHOLD = 0.25
 
 
 def masks_to_rects(masks, is_rle):
@@ -52,8 +51,7 @@ def masks_to_rects(masks, is_rle):
 
 def polygon_from_points(points):
     """ Returns a Polygon object to use with the Polygon2 class from a list of 8 points:
-        x1,y1,x2,y2,x3,y3,x4,y4
-    """
+        x1,y1,x2,y2,x3,y3,x4,y4 """
 
     point_mat = np.array(points[:8]).astype(np.int32).reshape(4, 2)
     return plg.Polygon(point_mat)
@@ -63,48 +61,35 @@ def draw_gt_polygons(image, gt_polygons, gt_dont_care_nums):
     """ Draws groundtruth polygons on image. """
 
     for point_idx, polygon in enumerate(gt_polygons):
-        color = (128, 128, 128) if point_idx in gt_dont_care_nums else (255, 0,
-                                                                        0)
+        color = (128, 128, 128) if point_idx in gt_dont_care_nums else (255, 0, 0)
         for i in range(4):
             pt1 = int(polygon[0][i][0]), int(polygon[0][i][1])
-            pt2 = int(polygon[0][(i + 1) % 4][0]), int(polygon[0][(i + 1) %
-                                                                  4][1])
+            pt2 = int(polygon[0][(i + 1) % 4][0]), int(polygon[0][(i + 1) % 4][1])
             cv2.line(image, pt1, pt2, color, 2)
     return image
 
 
-def draw_pr_polygons(image,
-                     pr_polygons,
+def draw_pr_polygons(image, pr_polygons,
                      pr_dont_care_nums,
                      pr_matched_nums,
-                     pr_confidences_list,
                      pr_transcriptions=[]):
     """ Draws predicted polygons on image. """
-    # image = cv2.imread(image)
-    for point_idx, _ in enumerate(pr_polygons):
-        if pr_confidences_list[point_idx] > CONFIDENCE_THRESHOLD:
-            polygon = pr_polygons[point_idx]
-            color = (0, 0, 255)
-            if point_idx in pr_dont_care_nums:
-                color = (255, 255, 255)
-            if point_idx in pr_matched_nums:
-                color = (0, 255, 0)
-                # for i in range(4):
-                #     pt1 = int(polygon[0][i][0]), int(polygon[0][i][1])
-                #     pt2 = int(polygon[0][(i + 1) % 4][0]), int(polygon[0][(i + 1) % 4][1])
-                #     cv2.line(image, pt1, pt2, color, 2)
-                # pt1 = int(polygon[0][0][0]), int(polygon[0][0][1])
-                # cv2.putText(image, str(pr_confidences_list[point_idx]), pt1, cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
 
-                if pr_transcriptions:
-                    pt1 = int(polygon[0][0][0]), int(polygon[0][0][1])
-                    cv2.putText(image, pr_transcriptions[point_idx], pt1,
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+    for point_idx, _ in enumerate(pr_polygons):
+        polygon = pr_polygons[point_idx]
+        color = (0, 0, 255)
+        if point_idx in pr_dont_care_nums:
+            color = (255, 255, 255)
+        if point_idx in pr_matched_nums:
+            color = (0, 255, 0)
+            if pr_transcriptions:
+                pt1 = int(polygon[0][0][0]), int(polygon[0][0][1])
+                cv2.putText(image, pr_transcriptions[point_idx], pt1,
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
 
             for i in range(4):
                 pt1 = int(polygon[0][i][0]), int(polygon[0][i][1])
-                pt2 = int(polygon[0][(i + 1) % 4][0]), int(polygon[0][(i + 1) %
-                                                                      4][1])
+                pt2 = int(polygon[0][(i + 1) % 4][0]), int(polygon[0][(i + 1) % 4][1])
                 cv2.line(image, pt1, pt2, color, 2)
     return image
 
@@ -112,8 +97,7 @@ def draw_pr_polygons(image,
 def get_union(polygon1, polygon2):
     """ Returns area of union of two polygons. """
 
-    return polygon1.area() + polygon2.area() - get_intersection(
-        polygon1, polygon2)
+    return polygon1.area() + polygon2.area() - get_intersection(polygon1, polygon2)
 
 
 def get_intersection_over_union(polygon1, polygon2):
@@ -226,7 +210,7 @@ def parse_gt_objects(gt_annotation, use_transcription):
     return gt_polygons_list, gt_dont_care_polygon_nums, gt_transcriptions
 
 
-def parse_pr_objects(pr_annotation, use_transcription, confidence_threshold):
+def parse_pr_objects(pr_annotation, conf_thr, use_transcription):
     """ Parses predicted objects from annotation. """
 
     pr_polygons_list = []
@@ -240,18 +224,11 @@ def parse_pr_objects(pr_annotation, use_transcription, confidence_threshold):
             pr_transcriptions.append(pr_object['text']['transcription'])
 
     # Filter out detections with low confidence.
-    filter_mask = [(el > confidence_threshold) for el in pr_confidences_list]
-    pr_polygons_list = [
-        el for (i, el) in enumerate(pr_polygons_list) if filter_mask[i]
-    ]
-    pr_confidences_list = [
-        el for (i, el) in enumerate(pr_confidences_list) if filter_mask[i]
-    ]
+    filter_mask = [(el > conf_thr) for el in pr_confidences_list]
+    pr_polygons_list = [el for (i, el) in enumerate(pr_polygons_list) if filter_mask[i]]
+    pr_confidences_list = [el for (i, el) in enumerate(pr_confidences_list) if filter_mask[i]]
     if use_transcription:
-        pr_transcriptions = [
-            el for (i, el) in enumerate(pr_transcriptions) if filter_mask[i]
-        ]
-
+        pr_transcriptions = [el for (i, el) in enumerate(pr_transcriptions) if filter_mask[i]]
     return pr_polygons_list, pr_confidences_list, pr_transcriptions
 
 
@@ -315,12 +292,9 @@ def match(gt_polygons_list, gt_transcriptions, gt_dont_care_polygon_nums,
     return pr_matched_nums, pr_matched_but_not_recognized, gt_matched_nums
 
 
-def text_eval(pr_annotations,
-              gt_annotations,
-              images=None,
-              show_recall_graph=False,
+def text_eval(pr_annotations, gt_annotations, conf_thr,
+              images=None, show_recall_graph=False,
               imshow_delay=1,
-              confidence_threshold=CONFIDENCE_THRESHOLD,
               use_transcriptions=False):
     """ Annotation format:
         {"image_path": [
@@ -333,8 +307,6 @@ def text_eval(pr_annotations,
          ### - is a transcription of non-valid word.
 
     """
-    # print(confidence_threshold)
-    # assert len(pr_annotations) == len(gt_annotations), str(len(pr_annotations)) + ' ' + str(len(gt_annotations))
 
     matched_sum = 0
     num_global_care_gt = 0
@@ -351,7 +323,7 @@ def text_eval(pr_annotations,
         gt_polygons_list, gt_dont_care_polygon_nums, gt_transcriptions = parse_gt_objects(
             gt_annotations[frame_id], use_transcriptions)
         pr_polygons_list, pr_confidences_list, pr_transcriptions = parse_pr_objects(
-            pr_annotations[frame_id], use_transcriptions, confidence_threshold)
+            pr_annotations[frame_id], conf_thr, use_transcriptions)
 
         pr_dont_care_polygon_nums = match_dont_care_objects(
             gt_polygons_list, gt_dont_care_polygon_nums, pr_polygons_list)
@@ -371,23 +343,19 @@ def text_eval(pr_annotations,
                     arr_global_confidences.append(pr_confidences_list[pr_num])
                     arr_global_matches.append(matched)
 
-        num_global_care_gt += len(gt_polygons_list) - len(
-            gt_dont_care_polygon_nums)
-        num_global_care_pr += len(pr_polygons_list) - len(
-            pr_dont_care_polygon_nums)
+        num_global_care_gt += len(gt_polygons_list) - len(gt_dont_care_polygon_nums)
+        num_global_care_pr += len(pr_polygons_list) - len(pr_dont_care_polygon_nums)
 
         if images is not None:
+            image = images[frame_id]
             image = cv2.imread(image)
-            draw_gt_polygons(image, gt_polygons_list,
-                             gt_dont_care_polygon_nums)
-            draw_pr_polygons(image, pr_polygons_list,
-                             pr_dont_care_polygon_nums, pr_matched_nums,
-                             pr_confidences_list)
+            draw_gt_polygons(image, gt_polygons_list, gt_dont_care_polygon_nums)
+            draw_pr_polygons(image, pr_polygons_list, pr_dont_care_polygon_nums, pr_matched_nums)
             if use_transcriptions:
                 draw_pr_polygons(image, pr_polygons_list,
                                  pr_dont_care_polygon_nums,
                                  pr_matched_but_not_recognized,
-                                 pr_confidences_list, pr_transcriptions)
+                                 pr_transcriptions)
             image = cv2.resize(image, (640, 480))
             cv2.imshow('result', image)
             k = cv2.waitKey(imshow_delay * 0)
@@ -396,20 +364,14 @@ def text_eval(pr_annotations,
 
         if show_recall_graph:  # draw graphs with normalized recall of different size objects
             for point_idx, polygon in enumerate(gt_polygons_list):
-                width = max(
-                    np.abs(int(polygon[0][2][0]) - int(polygon[0][1][0])),
-                    np.abs(int(polygon[0][1][0]) - int(polygon[0][0][0])))
+                width = max(np.abs(int(polygon[0][2][0]) - int(polygon[0][1][0])),
+                            np.abs(int(polygon[0][1][0]) - int(polygon[0][0][0])))
                 if width < 600:
                     all_width.append(width)
                     all_areas.append(polygon.area())
-                    if point_idx in gt_matched_nums and len(
-                            pr_matched_nums) > 0:
-                        pr_point_idx = pr_matched_nums[gt_matched_nums.index(
-                            point_idx)]
-                        confidence = pr_confidences_list[pr_point_idx]
-                        if confidence > CONFIDENCE_THRESHOLD:
-                            detected_areas.append(polygon.area())
-                            detected_width.append(width)
+                    if point_idx in gt_matched_nums and len(pr_matched_nums) > 0:
+                        detected_areas.append(polygon.area())
+                        detected_width.append(width)
 
     if show_recall_graph:
         bins = 5
@@ -424,24 +386,22 @@ def text_eval(pr_annotations,
             plt.text(
                 bar_X[i],
                 bar_Y[i],
-                "{0:.1f}%".format(bar_Y[i]),
+                "{0:.1f}".format(bar_Y[i]),
                 ha='center',
                 va='bottom',
-                rotation=0)
+                rotation=0,
+                fontsize=15)
         plt.ylim([60, 101])
-        plt.xlabel("Width of the instance")
-        plt.ylabel("The percentage of detected instance")
-        plt.title("Recall")
+        plt.xlabel("Width of instances", fontsize=15)
+        plt.ylabel("Detected instances, %", fontsize=15)
+        plt.title("Recall", fontsize=25)
         plt.show()
 
-    method_recall = 0 if num_global_care_gt == 0 else float(
-        matched_sum) / num_global_care_gt
-    method_precision = 0 if num_global_care_pr == 0 else float(
-        matched_sum) / num_global_care_pr
+    method_recall = 0 if num_global_care_gt == 0 else float(matched_sum) / num_global_care_gt
+    method_precision = 0 if num_global_care_pr == 0 else float(matched_sum) / num_global_care_pr
     denominator = method_precision + method_recall
     method_hmean = 0 if denominator == 0 else 2.0 * method_precision * method_recall / denominator
 
-    average_precision = compute_ap(arr_global_confidences, arr_global_matches,
-                                   num_global_care_gt)
+    average_precision = compute_ap(arr_global_confidences, arr_global_matches, num_global_care_gt)
 
     return method_recall, method_precision, method_hmean, average_precision
